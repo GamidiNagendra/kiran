@@ -1,93 +1,60 @@
-const playBoard = document.querySelector(".play-board");
-const scoreElement = document.querySelector(".score");
-const highScoreElement = document.querySelector(".high-score");
-const controls = document.querySelectorAll(".controls i");
+const uploadBox = document.querySelector(".upload-box"),
+previewImg = uploadBox.querySelector("img"),
+fileInput = uploadBox.querySelector("input"),
+widthInput = document.querySelector(".width input"),
+heightInput = document.querySelector(".height input"),
+ratioInput = document.querySelector(".ratio input"),
+qualityInput = document.querySelector(".quality input"),
+downloadBtn = document.querySelector(".download-btn");
 
-let gameOver = false;
-let foodX, foodY;
-let snakeX = 5, snakeY = 5;
-let velocityX = 0, velocityY = 0;
-let snakeBody = [];
-let setIntervalId;
-let score = 0;
+let ogImageRatio;
 
-// Getting high score from the local storage
-let highScore = localStorage.getItem("high-score") || 0;
-highScoreElement.innerText = `High Score: ${highScore}`;
-
-const updateFoodPosition = () => {
-    // Passing a random 1 - 30 value as food position
-    foodX = Math.floor(Math.random() * 30) + 1;
-    foodY = Math.floor(Math.random() * 30) + 1;
+const loadFile = (e) => {
+    const file = e.target.files[0]; // getting first user selected file
+    if(!file) return; // return if user hasn't selected any file
+    previewImg.src = URL.createObjectURL(file); // passing selected file url to preview img src
+    previewImg.addEventListener("load", () => { // once img loaded
+        widthInput.value = previewImg.naturalWidth;
+        heightInput.value = previewImg.naturalHeight;
+        ogImageRatio = previewImg.naturalWidth / previewImg.naturalHeight;
+        document.querySelector(".wrapper").classList.add("active");
+    });
 }
 
-const handleGameOver = () => {
-    // Clearing the timer and reloading the page on game over
-    clearInterval(setIntervalId);
-    alert("Game Over! Press OK to replay...");
-    location.reload();
-}
+widthInput.addEventListener("keyup", () => {
+    // getting height according to the ratio checkbox status
+    const height = ratioInput.checked ? widthInput.value / ogImageRatio : heightInput.value;
+    heightInput.value = Math.floor(height);
+});
 
-const changeDirection = e => {
-    // Changing velocity value based on key press
-    if(e.key === "ArrowUp" && velocityY != 1) {
-        velocityX = 0;
-        velocityY = -1;
-    } else if(e.key === "ArrowDown" && velocityY != -1) {
-        velocityX = 0;
-        velocityY = 1;
-    } else if(e.key === "ArrowLeft" && velocityX != 1) {
-        velocityX = -1;
-        velocityY = 0;
-    } else if(e.key === "ArrowRight" && velocityX != -1) {
-        velocityX = 1;
-        velocityY = 0;
-    }
-}
+heightInput.addEventListener("keyup", () => {
+    // getting width according to the ratio checkbox status
+    const width = ratioInput.checked ? heightInput.value * ogImageRatio : widthInput.value;
+    widthInput.value = Math.floor(width);
+});
 
-// Calling changeDirection on each key click and passing key dataset value as an object
-controls.forEach(button => button.addEventListener("click", () => changeDirection({ key: button.dataset.key })));
+const resizeAndDownload = () => {
+    const canvas = document.createElement("canvas");
+    const a = document.createElement("a");
+    const ctx = canvas.getContext("2d");
 
-const initGame = () => {
-    if(gameOver) return handleGameOver();
-    let html = `<div class="food" style="grid-area: ${foodY} / ${foodX}"></div>`;
+    // if quality checkbox is checked, pass 0.5 to imgQuality else pass 1.0
+    // 1.0 is 100% quality where 0.5 is 50% of total. you can pass from 0.1 - 1.0
+    const imgQuality = qualityInput.checked ? 0.5 : 1.0;
 
-    // Checking if the snake hit the food
-    if(snakeX === foodX && snakeY === foodY) {
-        updateFoodPosition();
-        snakeBody.push([foodY, foodX]); // Pushing food position to snake body array
-        score++; // increment score by 1
-        highScore = score >= highScore ? score : highScore;
-        localStorage.setItem("high-score", highScore);
-        scoreElement.innerText = `Score: ${score}`;
-        highScoreElement.innerText = `High Score: ${highScore}`;
-    }
-    // Updating the snake's head position based on the current velocity
-    snakeX += velocityX;
-    snakeY += velocityY;
+    // setting canvas height & width according to the input values
+    canvas.width = widthInput.value;
+    canvas.height = heightInput.value;
+
+    // drawing user selected image onto the canvas
+    ctx.drawImage(previewImg, 0, 0, canvas.width, canvas.height);
     
-    // Shifting forward the values of the elements in the snake body by one
-    for (let i = snakeBody.length - 1; i > 0; i--) {
-        snakeBody[i] = snakeBody[i - 1];
-    }
-    snakeBody[0] = [snakeX, snakeY]; // Setting first element of snake body to current snake position
-
-    // Checking if the snake's head is out of wall, if so setting gameOver to true
-    if(snakeX <= 0 || snakeX > 30 || snakeY <= 0 || snakeY > 30) {
-        return gameOver = true;
-    }
-
-    for (let i = 0; i < snakeBody.length; i++) {
-        // Adding a div for each part of the snake's body
-        html += `<div class="head" style="grid-area: ${snakeBody[i][1]} / ${snakeBody[i][0]}"></div>`;
-        // Checking if the snake head hit the body, if so set gameOver to true
-        if (i !== 0 && snakeBody[0][1] === snakeBody[i][1] && snakeBody[0][0] === snakeBody[i][0]) {
-            gameOver = true;
-        }
-    }
-    playBoard.innerHTML = html;
+    // passing canvas data url as href value of <a> element
+    a.href = canvas.toDataURL("image/jpeg", imgQuality);
+    a.download = new Date().getTime(); // passing current time as download value
+    a.click(); // clicking <a> element so the file download
 }
 
-updateFoodPosition();
-setIntervalId = setInterval(initGame, 100);
-document.addEventListener("keyup", changeDirection);
+downloadBtn.addEventListener("click", resizeAndDownload);
+fileInput.addEventListener("change", loadFile);
+uploadBox.addEventListener("click", () => fileInput.click());
